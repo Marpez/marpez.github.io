@@ -47,7 +47,7 @@
     </div>
 
     <script>
-        
+
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
@@ -57,8 +57,7 @@
 
         let score = 0; // Счётчик съеденных монеток
         let totalCoins = 0; // Общее количество монеток
-        let touchStartX, touchStartY;
-        let touchEndX, touchEndY;
+
         // Лабиринт, где 1 — стена, 0 — пустая клетка, 2 — монетка
         const maze = [
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
@@ -226,33 +225,51 @@ function drawGhosts() {
         const winModal = document.getElementById('winModal');
         const restartButton = document.getElementById('restartButton');
 
-        document.addEventListener('touchstart', function(event) {
-  touchStartX = event.touches[0].clientX;
-  touchStartY = event.touches[0].clientY;
-});
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'ArrowUp') {
+                direction = { x: 0, y: -1 };  // Движение вверх
+            } else if (event.key === 'ArrowDown') {
+                direction = { x: 0, y: 1 };   // Движение вниз
+            } else if (event.key === 'ArrowLeft') {
+                direction = { x: -1, y: 0 };  // Движение влево
+            } else if (event.key === 'ArrowRight') {
+                direction = { x: 1, y: 0 };   // Движение вправо
+            }
+        });
 
-document.addEventListener('touchmove', function(event) {
-  touchEndX = event.touches[0].clientX;
-  touchEndY = event.touches[0].clientY;
+        // Add event listeners for touch events
+  document.addEventListener('touchstart', handleTouchStart, false);
+  document.addEventListener('touchend', handleTouchEnd, false);
 
-  const deltaX = touchEndX - touchStartX;
-  const deltaY = touchEndY - touchStartY;
+  let touchStartX, touchStartY;
+  let swipeThreshold = 50; // adjust this value to change the swipe sensitivity
 
-  if (Math.abs(deltaX) > Math.abs(deltaY)) {
-    if (deltaX > 0) {
-      direction = { x: 1, y: 0 }; // Swipe right
-    } else {
-      direction = { x: -1, y: 0 }; // Swipe left
-    }
-  } else {
-    if (deltaY > 0) {
-      direction = { x: 0, y: 1 }; // Swipe down
-    } else {
-      direction = { x: 0, y: -1 }; // Swipe up
+  function handleTouchStart(event) {
+    touchStartX = event.touches[0].clientX;
+    touchStartY = event.touches[0].clientY;
+  }
+
+  function handleTouchEnd(event) {
+    const touchEndX = event.changedTouches[0].clientX;
+    const touchEndY = event.changedTouches[0].clientY;
+
+    const deltaX = touchEndX - touchStartX;
+    const deltaY = touchEndY - touchStartY;
+
+    if (Math.abs(deltaX) > swipeThreshold) {
+      if (deltaX > 0) {
+        direction = { x: 1, y: 0 }; // swipe right
+      } else {
+        direction = { x: -1, y: 0 }; // swipe left
+      }
+    } else if (Math.abs(deltaY) > swipeThreshold) {
+      if (deltaY > 0) {
+        direction = { x: 0, y: 1 }; // swipe down
+      } else {
+        direction = { x: 0, y: -1 }; // swipe up
+      }
     }
   }
-});
-
         // Функция для проверки, является ли ячейка стеной
         function isWall(x, y) {
             return maze[y] && maze[y][x] === 1;
@@ -310,40 +327,38 @@ document.addEventListener('touchmove', function(event) {
 }
 
 function gameLoop(timestamp) {
-  if (!gameOver) { // Check if game is over
-    drawMaze();      // Рисуем лабиринт
-    drawPacman();    // Рисуем Pac-Man
+    if (!gameOver) { // Check if game is over
+        drawMaze();      // Рисуем лабиринт
+        drawPacman();    // Рисуем Pac-Man
 
-    // Проверка времени для замедления движения
-    if (timestamp - lastMoveTime > moveDelay) {
-      // Рассчитываем новую позицию
-      const nextX = player.x + direction.x;
-      const nextY = player.y + direction.y;
+        // Проверка времени для замедления движения
+        if (timestamp - lastMoveTime > moveDelay) {
+            // Рассчитываем новую позицию
+            const nextX = player.x + direction.x;
+            const nextY = player.y + direction.y;
 
-      // Проверяем, можно ли двигаться в новую клетку (нет стены)
-      if (!isWall(nextX, player.y)) { // Проверяем по горизонтали
-        player.x = nextX; // Обновляем позицию по X
-      }
+            // Проверяем, можно ли двигаться в новую клетку (нет стены)
+            if (!isWall(nextX, player.y)) { // Проверяем по горизонтали
+                player.x = nextX; // Обновляем позицию по X
+            }
 
-      if (!isWall(player.x, nextY)) { // Проверяем по вертикали
-        player.y = nextY; // Обновляем позицию по Y
-      }
+            if (!isWall(player.x, nextY)) { // Проверяем по вертикали
+                player.y = nextY; // Обновляем позицию по Y
+            }
 
-      // Проверяем, есть ли на новой позиции монетка и съедаем её
-      eatCoin(player.x, player.y);
+            // Проверяем, есть ли на новой позиции монетка и съедаем её
+            eatCoin(player.x, player.y);
 
-      // Обновляем время последнего движения
-      lastMoveTime = timestamp;
+            // Обновляем время последнего движения
+            lastMoveTime = timestamp;
+        }
+
+        checkTeleport(player.x, player.y); // Проверка телепортации
+        moveGhosts(timestamp); // Двигаем призраков
+        checkGhostCollision(); // Проверка столкновения с призраками
+        drawGhosts();    // Рисуем призраков
     }
-
-    checkTeleport(player.x, player.y); // Проверка телепортации
-    checkGhostCollision(); // Проверка столкновения с призраками
-    drawGhosts();    // Рисуем призраков
-
-    // Добавляем вызов функции moveGhosts(timestamp) в конце
-    moveGhosts(timestamp); // Двигаем призраков
-  }
-  requestAnimationFrame(gameLoop); // Продолжаем игровой цикл
+    requestAnimationFrame(gameLoop); // Продолжаем игровой цикл
 }
 
         function drawMaze() {
