@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pac-Man Game</title>
+    <style>
+        body{
+            background-color: rgb(110, 21, 98);
+        }
+        canvas {
+            background-color: black;
+            display: block;
+            margin: 0 auto;
+        }
+        /* Стили для модального окна */
+        #winModal {
+            display: none; /* Скрываем по умолчанию */
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            text-align: center;
+            z-index: 1000;
+        }
+        #winModal button {
+            margin-top: 10px;
+            padding: 10px 20px;
+            background-color: blue;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="722" height="836"></canvas> <!-- 19*38 (width), 22*38 (height) -->
+    
+    <!-- Модальное окно для победы -->
+    <div id="winModal">
+        <h1>Победа!</h1>
+        <p>Вы съели все монетки!</p>
+        <button id="restartButton">Начать заново</button>
+    </div>
+
+    <script>
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const tileSize = 38;  // Размер одной клетки 38x38
+        const numRows = 9;   // Количество клеток по высоте
+        const numCols = 19;   // Количество клеток по ширине
+
+        let score = 0; // Счётчик съеденных монеток
+        let totalCoins = 0; // Общее количество монеток
+
+        // Лабиринт, где 1 — стена, 0 — пустая клетка, 2 — монетка
+        const maze = [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1],
+            [1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1],
+            [1, 2, 1, 2, 2, 2, 1, 2, 2, 2, 1, 2, 2, 2, 1, 2, 1, 2, 1],
+            [3, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 4],
+            [1, 2, 2, 2, 1, 2, 2, 2, 1, 2, 2, 2, 1, 2, 2, 2, 1, 2, 1],
+            [1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1],
+            [1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        ];
+
+        let lastTeleportTime = 0; // Переменная для отслеживания времени телепорта
+
+        const teleportCooldown = 500; // Задержка перед следующим телепортом в миллисекундах
+        // 1. Загружаем изображения призраков
+        const ghostImages = [
+            new Image(),
+            new Image(),
+            new Image()
+        ];
+
+        ghostImages[0].src = 'Group 114.png';
+        ghostImages[1].src = 'Group 115.png';
+        ghostImages[2].src = 'Group 116.png';
+
+        // 2. Определяем призраков
+        const ghosts = [
+            { x: 1, y: 5, image: ghostImages[0] }, // Призрак 1
+            { x: 5, y: 5, image: ghostImages[1] }, // Призрак 2
+            { x: 7, y: 5, image: ghostImages[2] }  // Призрак 3
+        ];
+
+        const originalGhostPositions = [
+            { x: 1, y: 5 },
+            { x: 5, y: 5 },
+            { x: 7, y: 5 }
+        ];
+
+const ghostSpeed = 600; // Задержка между движениями призраков (в миллисекундах)
+let lastGhostMoveTime = 0;
+
+
+        // 3. Логика движения призраков
+// 1. Логика движения призраков
+function moveGhosts(timestamp) {
+    if (timestamp - lastGhostMoveTime > ghostSpeed) {
+        ghosts.forEach(ghost => {
+            // Генерируем случайное направление
+            const direction = Math.floor(Math.random() * 4);
+            let nextX = ghost.x;
+            let nextY = ghost.y;
+
+            if (direction === 0) nextY--; // Вверх
+            else if (direction === 1) nextY++; // Вниз
+            else if (direction === 2) nextX--; // Влево
+            else if (direction === 3) nextX++; // Вправо
+
+            // Проверяем, можно ли двигаться
+            if (!isWall(nextX, nextY)) {
+                ghost.x = nextX;
+                ghost.y = nextY;
+            }
+
+            checkGhostTeleport(ghost); // Проверка телепортации для призрака
+        });
+        lastGhostMoveTime = timestamp; // Обновляем время последнего движения призраков
+    }
+}
+
+
+// 2. Обновим проверку телепортации для призраков
+function checkGhostTeleport(ghost) {
+    const currentTime = Date.now();
+    
+    if (currentTime - lastTeleportTime < teleportCooldown) return; // Проверяем задержку
+
+    if (maze[ghost.y][ghost.x] === 3) {
+        ghost.x = 18; // Телепортируем на клетку с телепортом 4
+        ghost.y = 4;
+        lastTeleportTime = currentTime; // Обновляем время последнего телепорта
+    } else if (maze[ghost.y][ghost.x] === 4) {
+        ghost.x = 0; // Телепортируем на клетку с телепортом 3
+        ghost.y = 4;
+        lastTeleportTime = currentTime; // Обновляем время последнего телепорта
+    }
+}
+
+let gameOver = false; // Add a game over flag
+
+    function checkGhostCollision() {
+        ghosts.forEach(ghost => {
+            if (ghost.x === player.x && ghost.y === player.y) {
+                gameOver = true; // Set game over flag to true
+                player.x = 1; // Reset player position
+                player.y = 1;
+                ghosts.forEach((ghost, index) => {
+                    ghost.x = originalGhostPositions[index].x;
+                    ghost.y = originalGhostPositions[index].y;
+                });
+                showGameOverModal(); // Show Game Over modal
+            }
+        });
+    }
+
+// 2. Убедитесь, что в функции showGameOverModal используется правильный контекст для удаления окна
+function showGameOverModal() {
+    const gameOverModal = document.createElement('div');
+    gameOverModal.innerHTML = `
+        <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background-color: white; padding: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); text-align: center;">
+            <h1>Game Over!</h1>
+            <p>Вы были пойманы призраками!</p>
+            <button id="restartButton">Начать заново</button>
+        </div>
+    `;
+    document.body.appendChild(gameOverModal);
+
+    document.getElementById('restartButton').addEventListener('click', function() {
+        document.body.removeChild(gameOverModal); // Remove Game Over modal
+        gameOver = false; // Reset game over flag
+        resetGame(); // Reset game state
+        gameLoop(); // Restart game loop
+    });
+}
+
+function drawGhosts() {
+    ghosts.forEach(ghost => {
+        ctx.drawImage(ghost.image, ghost.x * tileSize, ghost.y * tileSize, tileSize, tileSize);
+    });
+}
+
+        // Функция проверки телепортации
+        function checkTeleport(x, y) {
+            const currentTime = Date.now();
+            
+            if (currentTime - lastTeleportTime < teleportCooldown) return; // Проверяем задержку
+
+            if (maze[y][x] === 3) {
+                player.x = 18; // Телепортируем на клетку с телепортом 4
+                player.y = 4;
+                lastTeleportTime = currentTime; // Обновляем время последнего телепорта
+            } else if (maze[y][x] === 4) {
+                player.x = 0; // Телепортируем на клетку с телепортом 3
+                player.y = 4;
+                lastTeleportTime = currentTime; // Обновляем время последнего телепорта
+            }
+        }
+        // Рассчитываем общее количество монеток
+        for (let row = 0; row < maze.length; row++) {
+            for (let col = 0; col < maze[row].length; col++) {
+                if (maze[row][col] === 2) {
+                    totalCoins++;
+                }
+            }
+        }
+
+        const player = { x: 1, y: 1 };  // Начальная позиция Pac-Man
+
+        let direction = { x: 0, y: 0 }; // Направление движения Pac-Man
+        const moveDelay = 200; // Задержка между перемещениями в миллисекундах (например, 200 мс)
+        let lastMoveTime = 0;  // Время последнего перемещения
+
+        const winModal = document.getElementById('winModal');
+        const restartButton = document.getElementById('restartButton');
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'ArrowUp') {
+                direction = { x: 0, y: -1 };  // Движение вверх
+            } else if (event.key === 'ArrowDown') {
+                direction = { x: 0, y: 1 };   // Движение вниз
+            } else if (event.key === 'ArrowLeft') {
+                direction = { x: -1, y: 0 };  // Движение влево
+            } else if (event.key === 'ArrowRight') {
+                direction = { x: 1, y: 0 };   // Движение вправо
+            }
+        });
+
+        // Функция для проверки, является ли ячейка стеной
+        function isWall(x, y) {
+            return maze[y] && maze[y][x] === 1;
+        }
+
+        // Функция для проверки, есть ли монетка
+        function isCoin(x, y) {
+            return maze[y] && maze[y][x] === 2;
+        }
+
+        // Функция для поедания монетки
+        function eatCoin(x, y) {
+            if (isCoin(x, y)) {
+                maze[y][x] = 0; // Убираем монетку с карты
+                score++; // Увеличиваем счётчик
+                console.log("Монетка съедена! Текущий счёт: " + score);
+                
+                if (score === totalCoins) {
+                    showWinModal(); // Показать окно победы
+                }
+            }
+        }
+
+        // Функция для показа окна победы
+        function showWinModal() {
+            winModal.style.display = 'block';
+        }
+
+        // Перезапуск игры
+        restartButton.addEventListener('click', function() {
+            winModal.style.display = 'none'; // Скрываем модальное окно
+            resetGame(); // Перезапуск игры
+        });
+
+        // Функция для перезапуска игры
+        function resetGame() {
+    score = 0;
+    for (let row = 0; row < maze.length; row++) {
+        for (let col = 0; col < maze[row].length; col++) {
+            if (maze[row][col] === 0 && totalCoins > 0) {
+                maze[row][col] = 2;
+            }
+        }
+    }
+    player.x = 1;  // Возвращаем Pac-Man на начальную позицию
+    player.y = 1;
+
+    // Возвращаем призраков на их исходные позиции
+    ghosts.forEach((ghost, index) => {
+        ghost.x = originalGhostPositions[index].x;
+        ghost.y = originalGhostPositions[index].y;
+    });
+
+    direction = { x: 0, y: 0 };  // Сбрасываем направление движения
+}
+
+function gameLoop(timestamp) {
+    if (!gameOver) { // Check if game is over
+        drawMaze();      // Рисуем лабиринт
+        drawPacman();    // Рисуем Pac-Man
+
+        // Проверка времени для замедления движения
+        if (timestamp - lastMoveTime > moveDelay) {
+            // Рассчитываем новую позицию
+            const nextX = player.x + direction.x;
+            const nextY = player.y + direction.y;
+
+            // Проверяем, можно ли двигаться в новую клетку (нет стены)
+            if (!isWall(nextX, player.y)) { // Проверяем по горизонтали
+                player.x = nextX; // Обновляем позицию по X
+            }
+
+            if (!isWall(player.x, nextY)) { // Проверяем по вертикали
+                player.y = nextY; // Обновляем позицию по Y
+            }
+
+            // Проверяем, есть ли на новой позиции монетка и съедаем её
+            eatCoin(player.x, player.y);
+
+            // Обновляем время последнего движения
+            lastMoveTime = timestamp;
+        }
+
+        checkTeleport(player.x, player.y); // Проверка телепортации
+        moveGhosts(timestamp); // Двигаем призраков
+        checkGhostCollision(); // Проверка столкновения с призраками
+        drawGhosts();    // Рисуем призраков
+    }
+    requestAnimationFrame(gameLoop); // Продолжаем игровой цикл
+}
+
+        function drawMaze() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (let row = 0; row < maze.length; row++) {
+                for (let col = 0; col < maze[row].length; col++) {
+                    if (maze[row][col] === 1) {
+                        ctx.fillStyle = 'blue';  // Рисуем стены
+                        ctx.fillRect(col * tileSize, row * tileSize, tileSize, tileSize);
+                    } else if (maze[row][col] === 2) {
+                        ctx.fillStyle = 'yellow'; // Рисуем монетки
+                        ctx.beginPath();
+                        ctx.arc(col * tileSize + tileSize / 2, row * tileSize + tileSize / 2, tileSize / 4, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+            }
+        }
+
+        function drawPacman() {
+            ctx.fillStyle = 'yellow';  // Pac-Man
+            ctx.beginPath();
+            ctx.arc(player.x * tileSize + tileSize / 2, player.y * tileSize + tileSize / 2, tileSize / 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        gameLoop(); // Запуск игрового цикла
+
+    </script>
+</body>
+</html>
