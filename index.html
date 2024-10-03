@@ -310,38 +310,40 @@ document.addEventListener('touchmove', function(event) {
 }
 
 function gameLoop(timestamp) {
-    if (!gameOver) { // Check if game is over
-        drawMaze();      // Рисуем лабиринт
-        drawPacman();    // Рисуем Pac-Man
+  if (!gameOver) { // Check if game is over
+    drawMaze();      // Рисуем лабиринт
+    drawPacman();    // Рисуем Pac-Man
 
-        // Проверка времени для замедления движения
-        if (timestamp - lastMoveTime > moveDelay) {
-            // Рассчитываем новую позицию
-            const nextX = player.x + direction.x;
-            const nextY = player.y + direction.y;
+    // Проверка времени для замедления движения
+    if (timestamp - lastMoveTime > moveDelay) {
+      // Рассчитываем новую позицию
+      const nextX = player.x + direction.x;
+      const nextY = player.y + direction.y;
 
-            // Проверяем, можно ли двигаться в новую клетку (нет стены)
-            if (!isWall(nextX, player.y)) { // Проверяем по горизонтали
-                player.x = nextX; // Обновляем позицию по X
-            }
+      // Проверяем, можно ли двигаться в новую клетку (нет стены)
+      if (!isWall(nextX, player.y)) { // Проверяем по горизонтали
+        player.x = nextX; // Обновляем позицию по X
+      }
 
-            if (!isWall(player.x, nextY)) { // Проверяем по вертикали
-                player.y = nextY; // Обновляем позицию по Y
-            }
+      if (!isWall(player.x, nextY)) { // Проверяем по вертикали
+        player.y = nextY; // Обновляем позицию по Y
+      }
 
-            // Проверяем, есть ли на новой позиции монетка и съедаем её
-            eatCoin(player.x, player.y);
+      // Проверяем, есть ли на новой позиции монетка и съедаем её
+      eatCoin(player.x, player.y);
 
-            // Обновляем время последнего движения
-            lastMoveTime = timestamp;
-        }
-
-        checkTeleport(player.x, player.y); // Проверка телепортации
-        moveGhosts(timestamp); // Двигаем призраков
-        checkGhostCollision(); // Проверка столкновения с призраками
-        drawGhosts();    // Рисуем призраков
+      // Обновляем время последнего движения
+      lastMoveTime = timestamp;
     }
-    requestAnimationFrame(gameLoop); // Продолжаем игровой цикл
+
+    checkTeleport(player.x, player.y); // Проверка телепортации
+    checkGhostCollision(); // Проверка столкновения с призраками
+    drawGhosts();    // Рисуем призраков
+
+    // Добавляем вызов функции moveGhosts(timestamp) в конце
+    moveGhosts(timestamp); // Двигаем призраков
+  }
+  requestAnimationFrame(gameLoop); // Продолжаем игровой цикл
 }
 
         function drawMaze() {
